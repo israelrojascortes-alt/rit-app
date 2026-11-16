@@ -39,6 +39,15 @@ Los parámetros (6 actividades por turno y 3 análisis por actividad) se cambian
 
 ---
 
+### Instalar como app (PWA)
+
+La app se puede instalar en el celular y en el computador, con ícono propio y sin barra del navegador:
+
+- **Android / Chrome / Edge:** botón **Instalar app** arriba a la derecha, o menú del navegador → *Instalar aplicación*.
+- **iPhone (Safari):** Compartir → *Agregar a pantalla de inicio*.
+
+Una vez instalada, el formulario, la guía RF y las preguntas abren aunque no haya señal (el borrador queda guardado en el equipo); el envío de la RIT y el panel necesitan conexión. Archivos: `app/manifest.ts`, `public/sw.js`, `public/icons/`, `components/InstallApp.tsx`.
+
 ## 2. Tecnología
 
 - **Next.js 14** (App Router) con **React 18** y **TypeScript**.
