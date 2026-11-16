@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RF, RF_BY_CODE } from "@/lib/rf";
+import { CartillaPreview } from "./CartillaPreview";
 import {
   ITEMS_PREPARACION,
   MAX_ACTIVIDADES_POR_TURNO,
@@ -12,14 +13,14 @@ import {
   type AnalisisInput,
   type ItemKey,
   type RitInput,
+  type Turno,
 } from "@/lib/validacion";
 
-type Turno = "A" | "B";
-const DRAFT_KEY = "rit-borrador-v1";
+type FormRit = Omit<RitInput, "turno"> & { turno: Turno | "" };
+const DRAFT_KEY = "rit-borrador-v2";
 const hoy = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-const nuevaActividad = (turno: Turno): ActividadInput => ({
-  turno,
+const nuevaActividad = (): ActividadInput => ({
   descripcion: "",
   instructivos: null,
   materiales: null,
@@ -28,8 +29,9 @@ const nuevaActividad = (turno: Turno): ActividadInput => ({
   analisis: [{ rf: "", riesgo: "", consecuencia: "", controles: [] }],
 });
 
-const inicial = (): RitInput => ({
+const inicial = (): FormRit => ({
   fecha: hoy(),
+  turno: "",
   centroTrabajo: "División Radomiro Tomic",
   gerencia: "",
   superintendencia: "",
@@ -40,15 +42,15 @@ const inicial = (): RitInput => ({
   nContrato: "",
   nombreContrato: "",
   rfs: [],
-  actividades: [nuevaActividad("A")],
+  actividades: [nuevaActividad()],
   aportes: [],
   reconocimientos: [],
 });
 
 export default function RitForm() {
   const router = useRouter();
-  const [rit, setRit] = useState<RitInput>(inicial);
-  const [turno, setTurno] = useState<Turno>("A");
+  const [rit, setRit] = useState<FormRit>(inicial);
+  const [verPrevia, setVerPrevia] = useState(false);
   const [errores, setErrores] = useState<string[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [cargado, setCargado] = useState(false);
@@ -68,9 +70,8 @@ export default function RitForm() {
     } catch {}
   }, [rit, cargado]);
 
-  const set = <K extends keyof RitInput>(k: K, v: RitInput[K]) => setRit((r) => ({ ...r, [k]: v }));
-  const idxTurno = useMemo(() => rit.actividades.map((a, i) => [a, i] as const).filter(([a]) => a.turno === turno), [rit.actividades, turno]);
-  const cuenta = (t: Turno) => rit.actividades.filter((a) => a.turno === t).length;
+  const set = <K extends keyof FormRit>(k: K, v: FormRit[K]) => setRit((r) => ({ ...r, [k]: v }));
+  const turno = rit.turno || "–";
 
   const updAct = (i: number, patch: Partial<ActividadInput>) =>
     setRit((r) => ({ ...r, actividades: r.actividades.map((a, k) => (k === i ? { ...a, ...patch } : a)) }));
@@ -109,6 +110,7 @@ export default function RitForm() {
   const totalNo = rit.actividades.filter(noPreparada).length;
 
   return (
+    <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start xl:gap-6">
     <div className="space-y-5 pb-24">
       {errores.length > 0 && (
         <div className="rounded-xl border border-naranjo bg-naranjo-claro p-4 text-sm text-naranjo-oscuro" role="alert">
@@ -122,6 +124,23 @@ export default function RitForm() {
         <h2 className="section-title">1 · Identificación</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Campo label="Fecha"><input type="date" className="input" value={rit.fecha} onChange={(e) => set("fecha", e.target.value)} /></Campo>
+          <div>
+            <span className="label">Turno *</span>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Turno">
+              {(["A", "B"] as Turno[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={rit.turno === t}
+                  onClick={() => set("turno", t)}
+                  className={`rounded-lg border py-2.5 text-[15px] font-bold transition ${rit.turno === t ? "border-naranjo bg-naranjo text-white" : "border-grafito-linea bg-white text-grafito hover:bg-grafito-claro"}`}
+                >
+                  Turno {t}
+                </button>
+              ))}
+            </div>
+          </div>
           <Campo label="Centro de trabajo"><input className="input" value={rit.centroTrabajo} onChange={(e) => set("centroTrabajo", e.target.value)} /></Campo>
           <Campo label="Gerencia *"><input className="input" value={rit.gerencia} onChange={(e) => set("gerencia", e.target.value)} placeholder="Ej.: GMM" /></Campo>
           <Campo label="Superintendencia / Dirección"><input className="input" value={rit.superintendencia} onChange={(e) => set("superintendencia", e.target.value)} /></Campo>
@@ -165,20 +184,16 @@ export default function RitForm() {
       {/* 3 · Actividades */}
       <section className="card space-y-4">
         <h2 className="section-title">3 · Actividades del turno · ¿Estamos preparados?</h2>
-        <div className="grid grid-cols-2 gap-2 rounded-lg bg-grafito-claro p-1">
-          {(["A", "B"] as Turno[]).map((t) => (
-            <button key={t} type="button" onClick={() => setTurno(t)} className={`rounded-md py-2.5 text-sm font-bold transition ${turno === t ? "bg-white text-naranjo shadow" : "text-grafito-medio"}`}>
-              Turno {t} <span className="ml-1 font-semibold text-grafito-medio">({cuenta(t)}/{MAX_ACTIVIDADES_POR_TURNO})</span>
-            </button>
-          ))}
-        </div>
+        <p className="text-sm text-grafito-medio">
+          {rit.turno ? <>Turno <b>{rit.turno}</b> · {rit.actividades.length} de {MAX_ACTIVIDADES_POR_TURNO} actividades</> : "Elija el turno en la sección 1."}
+        </p>
 
-        {idxTurno.length === 0 && <p className="text-sm text-grafito-medio">Sin actividades registradas para el turno {turno}.</p>}
+        {rit.actividades.length === 0 && <p className="text-sm text-grafito-medio">Sin actividades registradas.</p>}
 
-        {idxTurno.map(([a, i], n) => (
+        {rit.actividades.map((a, i) => (
           <div key={i} className="space-y-3 rounded-xl border border-grafito-linea p-3 sm:p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-naranjo-oscuro">Actividad {turno}{n + 1}</span>
+              <span className="text-sm font-bold text-naranjo-oscuro">Actividad {turno}{i + 1}</span>
               <button type="button" className="text-xs font-semibold text-grafito-medio underline" onClick={() => set("actividades", rit.actividades.filter((_, k) => k !== i))}>
                 Quitar
               </button>
@@ -261,9 +276,9 @@ export default function RitForm() {
           </div>
         ))}
 
-        {cuenta(turno) < MAX_ACTIVIDADES_POR_TURNO && (
-          <button type="button" className="btn-dark w-full" onClick={() => set("actividades", [...rit.actividades, nuevaActividad(turno)])}>
-            + Agregar actividad al turno {turno}
+        {rit.actividades.length < MAX_ACTIVIDADES_POR_TURNO && (
+          <button type="button" className="btn-dark w-full" onClick={() => set("actividades", [...rit.actividades, nuevaActividad()])}>
+            + Agregar actividad{rit.turno ? ` al turno ${rit.turno}` : ""}
           </button>
         )}
       </section>
@@ -295,20 +310,47 @@ export default function RitForm() {
 
       {/* Barra de envío */}
       <div className="fixed inset-x-0 bottom-[49px] z-10 border-t border-grafito-linea bg-white/95 backdrop-blur md:bottom-0">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <p className="text-xs text-grafito-medio">
-            {cuenta("A")} act. turno A · {cuenta("B")} act. turno B · {rit.rfs.length} RF
+        <div className="mx-auto flex max-w-[1680px] items-center justify-end gap-3 px-4 py-3 sm:justify-between sm:px-6">
+          <p className="hidden text-xs text-grafito-medio sm:block">
+            {rit.turno ? `Turno ${rit.turno} · ` : ""}{rit.actividades.length} actividad{rit.actividades.length === 1 ? "" : "es"} · {rit.rfs.length} RF
             {totalNo > 0 && <b className="ml-1 text-naranjo-oscuro">· {totalNo} no preparada{totalNo > 1 ? "s" : ""}</b>}
             <span className="hidden sm:inline"> · borrador guardado en este equipo</span>
           </p>
           <div className="flex gap-2">
+            <button type="button" className="btn-ghost whitespace-nowrap xl:hidden" onClick={() => setVerPrevia(true)}>Ver cartilla</button>
             <button type="button" className="btn-ghost hidden sm:inline-flex" onClick={() => { if (confirm("¿Borrar todo y comenzar una RIT nueva?")) { localStorage.removeItem(DRAFT_KEY); setRit(inicial()); } }}>
               Limpiar
             </button>
-            <button type="button" className="btn-primary" disabled={enviando} onClick={enviar}>{enviando ? "Enviando…" : "Enviar RIT"}</button>
+            <button type="button" className="btn-primary whitespace-nowrap" disabled={enviando} onClick={enviar}>{enviando ? "Enviando…" : "Enviar RIT"}</button>
           </div>
         </div>
       </div>
+    </div>
+
+      {/* Vista previa en vivo: columna fija en pantallas grandes */}
+      <aside className="sticky top-4 hidden pb-24 xl:block">
+        <div className="mb-2 flex items-baseline justify-between">
+          <p className="eyebrow">Vista previa de la cartilla</p>
+          <span className="text-xs text-grafito-medio">Se actualiza mientras escribe</span>
+        </div>
+        <CartillaPreview rit={rit} />
+      </aside>
+
+      {/* Vista previa en celular y tablet: pantalla completa con desplazamiento */}
+      {verPrevia && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-grafito-claro xl:hidden" role="dialog" aria-modal="true" aria-label="Vista previa de la cartilla">
+          <div className="flex items-center justify-between bg-white px-4 py-3">
+            <p className="font-bold">Vista previa de la cartilla</p>
+            <button type="button" className="btn-dark" onClick={() => setVerPrevia(false)}>Cerrar</button>
+          </div>
+          <p className="bg-white px-4 pb-2 text-xs text-grafito-medio">Deslice para recorrer la hoja completa.</p>
+          <div className="flex-1 overflow-auto p-3">
+            <div className="w-[1100px]">
+              <CartillaPreview rit={rit} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

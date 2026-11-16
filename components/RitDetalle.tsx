@@ -6,7 +6,7 @@ const fmt = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("es-CL",
 
 export function RitDetalle({ rit }: { rit: Rit }) {
   const datos: [string, string | number][] = [
-    ["Fecha", fmt(rit.fecha)], ["Centro de trabajo", rit.centroTrabajo], ["Gerencia", rit.gerencia], ["Superintendencia / Dirección", rit.superintendencia],
+    ["Fecha", fmt(rit.fecha)], ["Turno", rit.turno], ["Centro de trabajo", rit.centroTrabajo], ["Gerencia", rit.gerencia], ["Superintendencia / Dirección", rit.superintendencia],
     ["Área / Frente de trabajo", rit.area], ["Supervisor a cargo", rit.supervisor], ["N.º de asistentes", rit.nAsistentes], ["EE.CC.", rit.eecc],
     ["N.º de contrato", rit.nContrato], ["Nombre del contrato", rit.nombreContrato],
   ];
@@ -31,10 +31,11 @@ export function RitDetalle({ rit }: { rit: Rit }) {
         </div>
       </section>
 
-      {(["A", "B"] as const).map((t) => {
-        const acts = rit.actividades.filter((a) => a.turno === t);
+      {(() => {
+        const t = rit.turno;
+        const acts = rit.actividades;
         return (
-          <section key={t} className="card space-y-3">
+          <section className="card space-y-3">
             <h2 className="section-title">Turno {t} · {acts.length} actividad{acts.length === 1 ? "" : "es"}</h2>
             {acts.length === 0 && <p className="text-sm text-grafito-medio">Sin actividades.</p>}
             {acts.map((a) => (
@@ -68,7 +69,7 @@ export function RitDetalle({ rit }: { rit: Rit }) {
             ))}
           </section>
         );
-      })}
+      })()}
 
       {(rit.aportes.length > 0 || rit.reconocimientos.length > 0) && (
         <section className="card grid gap-5 sm:grid-cols-2">
