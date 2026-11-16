@@ -32,16 +32,16 @@ export async function GET(req: Request) {
   wb.created = new Date();
 
   hoja(wb, "RIT", [
-    { header: "ID RIT", key: "id", width: 8 }, { header: "Fecha", key: "fecha", width: 12 }, { header: "Gerencia", key: "gerencia", width: 16 },
+    { header: "ID RIT", key: "id", width: 8 }, { header: "Fecha", key: "fecha", width: 12 }, { header: "Turno", key: "turno", width: 7 }, { header: "Gerencia", key: "gerencia", width: 16 },
     { header: "Área / Frente", key: "area", width: 26 }, { header: "Supervisor", key: "supervisor", width: 24 }, { header: "N.º asistentes", key: "nAsistentes", width: 11 },
     { header: "EE.CC.", key: "eecc", width: 26 }, { header: "N.º contrato", key: "nContrato", width: 14 }, { header: "RF del turno", key: "rfs", width: 34 },
-    { header: "Act. turno A", key: "actividadesA", width: 11 }, { header: "Act. turno B", key: "actividadesB", width: 11 }, { header: "Act. no preparadas", key: "noPreparadas", width: 13 },
+    { header: "Actividades", key: "actividades", width: 11 }, { header: "Act. no preparadas", key: "noPreparadas", width: 13 },
   ], res.map((r) => ({ ...r, rfs: r.rfs.join(", ") })), NARANJO);
 
   hoja(wb, "Actividades y análisis", [
     { header: "ID RIT", key: "rit_id", width: 8 }, { header: "Fecha", key: "fecha", width: 12 }, { header: "Gerencia", key: "gerencia", width: 14 },
     { header: "Superintendencia", key: "superintendencia", width: 18 }, { header: "Área / Frente", key: "area", width: 24 }, { header: "Supervisor", key: "supervisor", width: 22 },
-    { header: "EE.CC.", key: "eecc", width: 24 }, { header: "N.º contrato", key: "n_contrato", width: 13 }, { header: "Turno", key: "turno", width: 7 },
+    { header: "EE.CC.", key: "eecc", width: 24 }, { header: "N.º contrato", key: "n_contrato", width: 13 }, { header: "Turno", key: "turno_rit", width: 7 },
     { header: "Act. N.º", key: "act_n", width: 8 }, { header: "Actividad", key: "descripcion", width: 40 },
     { header: "Instructivos / PTS", key: "instructivos", width: 11 }, { header: "Materiales", key: "materiales", width: 11 }, { header: "Herramientas", key: "herramientas", width: 12 }, { header: "EPP", key: "epp", width: 8 },
     { header: "RF", key: "rf", width: 8 }, { header: "Nombre RF", key: "rf_nombre", width: 28 }, { header: "Riesgo / evento top", key: "riesgo", width: 40 },
