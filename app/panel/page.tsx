@@ -36,9 +36,12 @@ export default async function Panel({ searchParams }: { searchParams: Record<str
       title="Panel de seguimiento RIT"
       actions={<a href={`/api/export?${qs(f)}`} className="btn bg-white text-naranjo hover:bg-naranjo-claro">Exportar Excel</a>}
     >
-      <form className="card mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-[150px_150px_1fr_1fr_1fr_auto]" method="get">
+      <form className="card mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-[150px_150px_110px_1fr_1fr_1fr_auto]" method="get">
         <label><span className="label">Desde</span><input type="date" name="desde" defaultValue={f.desde} className="input" /></label>
         <label><span className="label">Hasta</span><input type="date" name="hasta" defaultValue={f.hasta} className="input" /></label>
+        <label><span className="label">Turno</span>
+          <select name="turno" defaultValue={f.turno ?? ""} className="input"><option value="">Ambos</option><option value="A">A</option><option value="B">B</option></select>
+        </label>
         <label><span className="label">Gerencia</span>
           <select name="gerencia" defaultValue={f.gerencia ?? ""} className="input"><option value="">Todas</option>{op.gerencias.map((g) => <option key={g}>{g}</option>)}</select>
         </label>
@@ -95,22 +98,23 @@ export default async function Panel({ searchParams }: { searchParams: Record<str
       <section className="card">
         <h2 className="section-title mb-3">RIT enviadas ({lista.length}{lista.length === 300 ? "+" : ""})</h2>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="border-b-2 border-grafito text-xs text-grafito-medio">
-              <tr><th className="py-2 pr-3">N.º</th><th className="pr-3">Fecha</th><th className="pr-3">Gerencia</th><th className="pr-3">EE.CC. / contrato</th><th className="pr-3">Área</th><th className="pr-3">Supervisor</th><th className="pr-3 text-right">Asist.</th><th className="pr-3 text-right">Act. A/B</th><th className="pr-3">RF</th><th></th></tr>
+              <tr><th className="py-2 pr-3">N.º</th><th className="pr-3">Fecha</th><th className="pr-3">Turno</th><th className="pr-3">Gerencia</th><th className="pr-3">EE.CC. / contrato</th><th className="pr-3">Área</th><th className="pr-3">Supervisor</th><th className="pr-3 text-right">Asist.</th><th className="pr-3 text-right">Act.</th><th className="pr-3">RF</th><th></th></tr>
             </thead>
             <tbody>
-              {lista.length === 0 && <tr><td colSpan={10} className="py-6 text-center text-grafito-medio">No hay RIT para los filtros seleccionados.</td></tr>}
+              {lista.length === 0 && <tr><td colSpan={11} className="py-6 text-center text-grafito-medio">No hay RIT para los filtros seleccionados.</td></tr>}
               {lista.map((r) => (
                 <tr key={r.id} className="border-b border-grafito-linea align-top">
                   <td className="py-2 pr-3 font-semibold">{r.id}</td>
                   <td className="pr-3 tabular-nums">{r.fecha}</td>
+                  <td className="pr-3 font-semibold">{r.turno}</td>
                   <td className="pr-3">{r.gerencia}</td>
                   <td className="pr-3">{r.eecc || "Codelco"}{r.nContrato && <span className="block text-xs text-grafito-medio">{r.nContrato}</span>}</td>
                   <td className="pr-3">{r.area}</td>
                   <td className="pr-3">{r.supervisor}</td>
                   <td className="pr-3 text-right tabular-nums">{r.nAsistentes}</td>
-                  <td className="pr-3 text-right tabular-nums">{r.actividadesA}/{r.actividadesB}{r.noPreparadas > 0 && <span className="ml-1 rounded bg-naranjo px-1 text-xs font-bold text-white" title="Actividades no preparadas">{r.noPreparadas} NO</span>}</td>
+                  <td className="pr-3 text-right tabular-nums">{r.actividades}{r.noPreparadas > 0 && <span className="ml-1 rounded bg-naranjo px-1 text-xs font-bold text-white" title="Actividades no preparadas">{r.noPreparadas} NO</span>}</td>
                   <td className="pr-3 text-xs">{r.rfs.join(" · ")}</td>
                   <td><Link href={`/rit/${r.id}`} className="font-semibold text-naranjo-oscuro underline">Ver</Link></td>
                 </tr>
