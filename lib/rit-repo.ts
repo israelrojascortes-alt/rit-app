@@ -1,13 +1,14 @@
 import "server-only";
 import { db } from "./db";
-import type { RitInput, ItemKey } from "./validacion";
+import type { RitInput, ItemKey, Turno } from "./validacion";
 
 export type Analisis = { id: number; orden: number; rf: string; riesgo: string; consecuencia: string; controles: string[] };
-export type Actividad = { id: number; turno: "A" | "B"; orden: number; descripcion: string; analisis: Analisis[] } & Record<ItemKey, boolean | null>;
+export type Actividad = { id: number; orden: number; descripcion: string; analisis: Analisis[] } & Record<ItemKey, boolean | null>;
 export type Rit = {
   id: number;
   creadoEn: string;
   fecha: string;
+  turno: Turno;
   centroTrabajo: string;
   gerencia: string;
   superintendencia: string;
@@ -22,13 +23,12 @@ export type Rit = {
   aportes: { propuesta: string; responsable: string; fecha: string | null }[];
   reconocimientos: { quien: string; motivo: string }[];
 };
-export type RitResumen = Pick<Rit, "id" | "creadoEn" | "fecha" | "gerencia" | "area" | "supervisor" | "nAsistentes" | "eecc" | "nContrato" | "rfs"> & {
-  actividadesA: number;
-  actividadesB: number;
+export type RitResumen = Pick<Rit, "id" | "creadoEn" | "fecha" | "turno" | "gerencia" | "area" | "supervisor" | "nAsistentes" | "eecc" | "nContrato" | "rfs"> & {
+  actividades: number;
   noPreparadas: number;
 };
 
-export type Filtros = { desde?: string; hasta?: string; gerencia?: string; eecc?: string; q?: string };
+export type Filtros = { desde?: string; hasta?: string; turno?: string; gerencia?: string; eecc?: string; q?: string };
 
 const iso = (d: unknown) => (d instanceof Date ? d.toISOString().slice(0, 10) : d ? String(d).slice(0, 10) : null);
 
@@ -36,16 +36,16 @@ export async function crearRit(r: RitInput): Promise<number> {
   const d = await db();
   return d.tx(async (q) => {
     const [{ id }] = await q<{ id: number }>(
-      `INSERT INTO rit (fecha, centro_trabajo, gerencia, superintendencia, area, supervisor, n_asistentes, eecc, n_contrato, nombre_contrato, rfs)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-      [r.fecha, r.centroTrabajo, r.gerencia, r.superintendencia, r.area, r.supervisor, r.nAsistentes, r.eecc, r.nContrato, r.nombreContrato, r.rfs],
+      `INSERT INTO rit (fecha, turno, centro_trabajo, gerencia, superintendencia, area, supervisor, n_asistentes, eecc, n_contrato, nombre_contrato, rfs)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [r.fecha, r.turno, r.centroTrabajo, r.gerencia, r.superintendencia, r.area, r.supervisor, r.nAsistentes, r.eecc, r.nContrato, r.nombreContrato, r.rfs],
     );
-    const orden = { A: 0, B: 0 };
+    let orden = 0;
     for (const a of r.actividades) {
       const [{ id: actId }] = await q<{ id: number }>(
         `INSERT INTO actividad (rit_id, turno, orden, descripcion, instructivos, materiales, herramientas, epp)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-        [id, a.turno, ++orden[a.turno], a.descripcion, a.instructivos, a.materiales, a.herramientas, a.epp],
+        [id, r.turno, ++orden, a.descripcion, a.instructivos, a.materiales, a.herramientas, a.epp],
       );
       let k = 0;
       for (const an of a.analisis) {
@@ -66,7 +66,7 @@ export async function obtenerRit(id: number): Promise<Rit | null> {
   const d = await db();
   const [r] = await d.query(`SELECT * FROM rit WHERE id = $1`, [id]);
   if (!r) return null;
-  const acts = await d.query(`SELECT * FROM actividad WHERE rit_id = $1 ORDER BY turno, orden`, [id]);
+  const acts = await d.query(`SELECT * FROM actividad WHERE rit_id = $1 ORDER BY orden`, [id]);
   const ans = acts.length
     ? await d.query(`SELECT * FROM analisis WHERE actividad_id = ANY($1::int[]) ORDER BY orden`, [acts.map((a) => a.id)])
     : [];
@@ -76,6 +76,7 @@ export async function obtenerRit(id: number): Promise<Rit | null> {
     id: Number(r.id),
     creadoEn: new Date(r.creado_en as string).toISOString(),
     fecha: iso(r.fecha)!,
+    turno: (r.turno as Turno) ?? "A",
     centroTrabajo: String(r.centro_trabajo),
     gerencia: String(r.gerencia),
     superintendencia: String(r.superintendencia),
@@ -88,7 +89,6 @@ export async function obtenerRit(id: number): Promise<Rit | null> {
     rfs: (r.rfs as string[]) ?? [],
     actividades: acts.map((a) => ({
       id: Number(a.id),
-      turno: a.turno as "A" | "B",
       orden: Number(a.orden),
       descripcion: String(a.descripcion),
       instructivos: a.instructivos as boolean | null,
@@ -113,6 +113,7 @@ function where(f: Filtros) {
   };
   if (f.desde) add("r.fecha >= ?", f.desde);
   if (f.hasta) add("r.fecha <= ?", f.hasta);
+  if (f.turno) add("r.turno = ?", f.turno);
   if (f.gerencia) add("r.gerencia = ?", f.gerencia);
   if (f.eecc) add("r.eecc = ?", f.eecc);
   if (f.q) {
@@ -127,9 +128,8 @@ export async function listarRits(f: Filtros, limit = 300): Promise<RitResumen[]>
   const d = await db();
   const w = where(f);
   const rows = await d.query(
-    `SELECT r.id, r.creado_en, r.fecha, r.gerencia, r.area, r.supervisor, r.n_asistentes, r.eecc, r.n_contrato, r.rfs,
-            COUNT(a.id) FILTER (WHERE a.turno = 'A')::int AS act_a,
-            COUNT(a.id) FILTER (WHERE a.turno = 'B')::int AS act_b,
+    `SELECT r.id, r.creado_en, r.fecha, r.turno, r.gerencia, r.area, r.supervisor, r.n_asistentes, r.eecc, r.n_contrato, r.rfs,
+            COUNT(a.id)::int AS act,
             COUNT(a.id) FILTER (WHERE a.instructivos IS FALSE OR a.materiales IS FALSE OR a.herramientas IS FALSE OR a.epp IS FALSE)::int AS no_prep
        FROM rit r LEFT JOIN actividad a ON a.rit_id = r.id
        ${w.sql}
@@ -142,6 +142,7 @@ export async function listarRits(f: Filtros, limit = 300): Promise<RitResumen[]>
     id: Number(r.id),
     creadoEn: new Date(r.creado_en as string).toISOString(),
     fecha: iso(r.fecha)!,
+    turno: (r.turno as Turno) ?? "A",
     gerencia: String(r.gerencia),
     area: String(r.area),
     supervisor: String(r.supervisor),
@@ -149,8 +150,7 @@ export async function listarRits(f: Filtros, limit = 300): Promise<RitResumen[]>
     eecc: String(r.eecc),
     nContrato: String(r.n_contrato),
     rfs: (r.rfs as string[]) ?? [],
-    actividadesA: Number(r.act_a),
-    actividadesB: Number(r.act_b),
+    actividades: Number(r.act),
     noPreparadas: Number(r.no_prep),
   }));
 }
@@ -202,15 +202,15 @@ export async function filasExport(f: Filtros) {
   const d = await db();
   const w = where(f);
   return d.query(
-    `SELECT r.id AS rit_id, r.fecha, r.gerencia, r.superintendencia, r.area, r.supervisor, r.n_asistentes, r.eecc, r.n_contrato, r.nombre_contrato,
+    `SELECT r.id AS rit_id, r.fecha, r.turno AS turno_rit, r.gerencia, r.superintendencia, r.area, r.supervisor, r.n_asistentes, r.eecc, r.n_contrato, r.nombre_contrato,
             array_to_string(r.rfs, ', ') AS rfs_turno,
-            a.turno, a.orden AS act_n, a.descripcion, a.instructivos, a.materiales, a.herramientas, a.epp,
+            a.orden AS act_n, a.descripcion, a.instructivos, a.materiales, a.herramientas, a.epp,
             an.orden AS an_n, an.rf, an.riesgo, an.consecuencia, array_to_string(an.controles, ', ') AS controles
        FROM rit r
        LEFT JOIN actividad a ON a.rit_id = r.id
        LEFT JOIN analisis an ON an.actividad_id = a.id
        ${w.sql}
-      ORDER BY r.fecha, r.id, a.turno, a.orden, an.orden`,
+      ORDER BY r.fecha, r.id, a.orden, an.orden`,
     w.params,
   );
 }
@@ -219,12 +219,12 @@ export async function aportesExport(f: Filtros) {
   const d = await db();
   const w = where(f);
   const aportes = await d.query(
-    `SELECT r.id AS rit_id, r.fecha, r.gerencia, r.eecc, r.supervisor, p.propuesta, p.responsable, p.fecha AS fecha_compromiso
+    `SELECT r.id AS rit_id, r.fecha, r.turno AS turno_rit, r.gerencia, r.eecc, r.supervisor, p.propuesta, p.responsable, p.fecha AS fecha_compromiso
        FROM rit r JOIN aporte p ON p.rit_id = r.id ${w.sql} ORDER BY r.fecha, r.id`,
     w.params,
   );
   const recon = await d.query(
-    `SELECT r.id AS rit_id, r.fecha, r.gerencia, r.eecc, r.supervisor, c.quien, c.motivo
+    `SELECT r.id AS rit_id, r.fecha, r.turno AS turno_rit, r.gerencia, r.eecc, r.supervisor, c.quien, c.motivo
        FROM rit r JOIN reconocimiento c ON c.rit_id = r.id ${w.sql} ORDER BY r.fecha, r.id`,
     w.params,
   );

@@ -40,24 +40,25 @@ async function sembrar() {
   const d = await db();
   // Solo una instancia siembra (en Vercel puede haber varias a la vez): marca atómica
   await d.query("CREATE TABLE IF NOT EXISTS demo_seed (id INTEGER PRIMARY KEY)");
-  const marca = await d.query("INSERT INTO demo_seed (id) VALUES (1) ON CONFLICT DO NOTHING RETURNING id");
+  // Versión 2 de los datos demo (RIT de un solo turno): reemplaza los datos demo anteriores
+  const marca = await d.query("INSERT INTO demo_seed (id) VALUES (2) ON CONFLICT DO NOTHING RETURNING id");
   if (marca.length === 0) return;
-  const [{ n }] = await d.query<{ n: number }>("SELECT COUNT(*)::int AS n FROM rit");
-  if (Number(n) > 0) return;
+  await d.query("DELETE FROM rit");
   const r = rng(2026);
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
   const hoy = new Date();
   for (let k = 0; k < 18; k++) {
     const f = new Date(hoy.getTime() - Math.floor(k / 2) * 86400000);
     const actividades: ActividadInput[] = [];
-    for (const turno of ["A", "B"] as const) {
-      const cant = turno === "A" ? 1 + Math.floor(r() * 3) : Math.floor(r() * 3);
+    const turno = k % 2 === 0 ? "A" : "B";
+    {
+      const cant = 2 + Math.floor(r() * 4);
       for (let i = 0; i < cant; i++) {
         const [desc, rf] = pick(ACTIVIDADES);
         const ctrl = RF_BY_CODE[rf].controles;
         const no = r() < 0.12;
         actividades.push({
-          turno, descripcion: desc,
+          descripcion: desc,
           instructivos: true, materiales: true, herramientas: !no, epp: true,
           analisis: [{ rf, riesgo: RF_BY_CODE[rf].evento, consecuencia: "Lesión grave o fatal", controles: ctrl.slice(0, 2).map((c) => `${rf}-${c.code}`) }],
         });
@@ -67,6 +68,7 @@ async function sembrar() {
     if (r() < 0.4) rfs.push(pick(RF).code);
     const input: RitInput = {
       fecha: f.toISOString().slice(0, 10),
+      turno,
       centroTrabajo: "División Radomiro Tomic",
       gerencia: pick(GERENCIAS),
       superintendencia: "",

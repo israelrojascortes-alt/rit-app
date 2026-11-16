@@ -6,7 +6,8 @@ const txt = (v: string | null | undefined) => (v && v.trim() ? v.trim().slice(0,
 type SP = URLSearchParams | Record<string, string | string[] | undefined>;
 export function filtrosDe(sp: SP): Filtros {
   const get = (k: string) => (sp instanceof URLSearchParams ? sp.get(k) : ([] as (string | undefined)[]).concat(sp[k] ?? [])[0]);
-  return { desde: fecha(get("desde")), hasta: fecha(get("hasta")), gerencia: txt(get("gerencia")), eecc: txt(get("eecc")), q: txt(get("q")) };
+  const t = get("turno");
+  return { desde: fecha(get("desde")), hasta: fecha(get("hasta")), turno: t === "A" || t === "B" ? t : undefined, gerencia: txt(get("gerencia")), eecc: txt(get("eecc")), q: txt(get("q")) };
 }
 export function qs(f: Filtros) {
   const p = new URLSearchParams();

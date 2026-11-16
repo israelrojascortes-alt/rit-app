@@ -2,6 +2,7 @@ import { z } from "zod";
 import { RF_BY_CODE } from "./rf";
 
 export const MAX_ACTIVIDADES_POR_TURNO = 6;
+export type Turno = "A" | "B";
 export const MAX_ANALISIS_POR_ACTIVIDAD = 3;
 export const ITEMS_PREPARACION = [
   { key: "instructivos", label: "Instructivos y/o PTS" },
@@ -23,7 +24,6 @@ export const analisisSchema = z.object({
 });
 
 export const actividadSchema = z.object({
-  turno: z.enum(["A", "B"]),
   descripcion: texto(500).min(3, "Describa la actividad"),
   instructivos: siNo,
   materiales: siNo,
@@ -35,6 +35,7 @@ export const actividadSchema = z.object({
 export const ritSchema = z
   .object({
     fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+    turno: z.enum(["A", "B"], { error: "Seleccione el turno (A o B)" }),
     centroTrabajo: texto(120).default("División Radomiro Tomic"),
     gerencia: texto(120).min(2, "Indique la gerencia"),
     superintendencia: texto(120).default(""),
@@ -45,20 +46,14 @@ export const ritSchema = z
     nContrato: texto(40).default(""),
     nombreContrato: texto(200).default(""),
     rfs: z.array(rfCode).max(40),
-    actividades: z.array(actividadSchema).min(1, "Registre al menos una actividad").max(2 * MAX_ACTIVIDADES_POR_TURNO),
+    actividades: z.array(actividadSchema).min(1, "Registre al menos una actividad").max(MAX_ACTIVIDADES_POR_TURNO, `Máximo ${MAX_ACTIVIDADES_POR_TURNO} actividades por turno`),
     aportes: z.array(z.object({ propuesta: texto().min(1), responsable: texto(120), fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).or(z.literal("")) })).max(10),
     reconocimientos: z.array(z.object({ quien: texto(120).min(1), motivo: texto() })).max(10),
   })
   .superRefine((r, ctx) => {
-    for (const t of ["A", "B"] as const) {
-      if (r.actividades.filter((a) => a.turno === t).length > MAX_ACTIVIDADES_POR_TURNO)
-        ctx.addIssue({ code: "custom", message: `Máximo ${MAX_ACTIVIDADES_POR_TURNO} actividades en el turno ${t}`, path: ["actividades"] });
-    }
-    const n = { A: 0, B: 0 };
     r.actividades.forEach((a, i) => {
-      n[a.turno]++;
       if (ITEMS_PREPARACION.some((it) => a[it.key] === null))
-        ctx.addIssue({ code: "custom", message: `Actividad ${a.turno}${n[a.turno]}: responda SÍ o NO en los 4 ítems de preparación`, path: ["actividades", i] });
+        ctx.addIssue({ code: "custom", message: `Actividad ${r.turno}${i + 1}: responda SÍ o NO en los 4 ítems de preparación`, path: ["actividades", i] });
     });
     r.actividades.forEach((a, i) =>
       a.analisis.forEach((an, j) => {

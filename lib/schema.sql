@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS rit (
   nombre_contrato  TEXT        NOT NULL DEFAULT '',
   rfs              TEXT[]      NOT NULL DEFAULT '{}'
 );
+ALTER TABLE rit ADD COLUMN IF NOT EXISTS turno CHAR(1) NOT NULL DEFAULT 'A';
 CREATE INDEX IF NOT EXISTS rit_fecha_idx ON rit (fecha);
 CREATE INDEX IF NOT EXISTS rit_eecc_idx ON rit (eecc);
 
