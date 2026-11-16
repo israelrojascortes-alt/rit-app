@@ -5,7 +5,7 @@ export const metadata = { title: "Nueva RIT" };
 
 export default function NuevaRit() {
   return (
-    <Shell eyebrow="Cartilla · Reunión de planificación" title="Nueva Reunión de Inicio de Turno">
+    <Shell ancho eyebrow="Cartilla · Reunión de planificación" title="Nueva Reunión de Inicio de Turno">
       <RitForm />
     </Shell>
   );
