@@ -16,6 +16,9 @@ const plex = localFont({
 export const metadata: Metadata = {
   title: { default: "RIT · Reunión de Inicio de Turno", template: "%s · RIT DRT" },
   description: "Reunión de Inicio de Turno – GSSO División Radomiro Tomic",
+  applicationName: "RIT DRT",
+  appleWebApp: { capable: true, title: "RIT DRT", statusBarStyle: "default" },
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#E4450D" };
 

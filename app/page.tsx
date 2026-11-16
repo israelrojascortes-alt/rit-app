@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Shell } from "@/components/Shell";
 
 const CARDS = [
-  { href: "/rit/nueva", t: "Registrar RIT", d: "Llena la cartilla del turno desde el celular: RF presentes, actividades del Turno A y B, análisis de riesgo y controles.", cta: "Comenzar", primary: true },
+  { href: "/rit/nueva", t: "Registrar RIT", d: "Llena la cartilla del turno desde el celular: elige el turno (A o B), marca los RF y registra hasta 6 actividades con su análisis de riesgo, viendo la cartilla en vivo.", cta: "Comenzar", primary: true },
   { href: "/panel", t: "Panel GSSO", d: "Seguimiento de las RIT enviadas por fecha, gerencia y empresa contratista, RF más declarados y actividades no preparadas.", cta: "Ver panel" },
   { href: "/guia", t: "Guía de consulta RF", d: "Evento top, energía y controles críticos preventivos (CCP) y mitigadores (CCM) de cada riesgo de fatalidad.", cta: "Consultar" },
   { href: "/preguntas", t: "Preguntas frecuentes", d: "Criterios acordados con Seguridad: cuándo, quién y cómo se realiza la RIT.", cta: "Revisar" },
