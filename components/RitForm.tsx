@@ -24,6 +24,10 @@ const f = (sel: string, titulo: string) => ({ "data-foco": sel, "data-foco-titul
 const enAct = (i: number, c: string) => c.split(",").map((x) => `tr[data-act="${i}"] [data-c~="${x.trim()}"]`).join(", ");
 const enAn = (i: number, j: number, c: string) => c.split(",").map((x) => `tr[data-act="${i}"][data-an="${j}"] [data-c~="${x.trim()}"]`).join(", ");
 
+const ALFABETO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const nuevoCodigo = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) => ALFABETO[n % ALFABETO.length]).join("");
+const VIVO_KEY = "rit-vivo-codigo";
+
 const hoy = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 const nuevaActividad = (): ActividadInput => ({
@@ -62,6 +66,23 @@ export default function RitForm() {
   const [cargado, setCargado] = useState(false);
   const [foco, setFoco] = useState<Foco>(null);
   const [enVivo, setEnVivo] = useState(true);
+  // Proyección en pantalla grande: el borrador se envía al servidor y la sala lo ve en /vivo/<código>.
+  const [codigoVivo, setCodigoVivo] = useState<string | null>(null);
+  const [verProyectar, setVerProyectar] = useState(false);
+  const [sync, setSync] = useState<"ok" | "enviando" | "error">("ok");
+
+  useEffect(() => {
+    try { setCodigoVivo(localStorage.getItem(VIVO_KEY)); } catch {}
+  }, []);
+  const iniciarProyeccion = () => {
+    const c = nuevoCodigo();
+    setCodigoVivo(c);
+    try { localStorage.setItem(VIVO_KEY, c); } catch {}
+  };
+  const detenerProyeccion = () => {
+    setCodigoVivo(null);
+    try { localStorage.removeItem(VIVO_KEY); } catch {}
+  };
 
   useEffect(() => {
     try { if (localStorage.getItem("rit-en-vivo") === "0") setEnVivo(false); } catch {}
@@ -90,6 +111,21 @@ export default function RitForm() {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(rit));
     } catch {}
   }, [rit, cargado]);
+
+  // Cada cambio (y el campo tocado) se envía a la pantalla medio segundo después de dejar de escribir.
+  useEffect(() => {
+    if (!codigoVivo || !cargado) return;
+    setSync("enviando");
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/vivo/${codigoVivo}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ datos: rit, foco: foco?.sel ?? "" }) });
+        setSync(r.ok ? "ok" : "error");
+      } catch {
+        setSync("error");
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [rit, foco, codigoVivo, cargado]);
 
   const set = <K extends keyof FormRit>(k: K, v: FormRit[K]) => setRit((r) => ({ ...r, [k]: v }));
   const turno = rit.turno || "";
@@ -346,7 +382,10 @@ export default function RitForm() {
             <span className="hidden sm:inline"> · borrador guardado en este equipo</span>
           </p>
           <div className="flex gap-2">
-            <button type="button" className="btn-ghost whitespace-nowrap xl:hidden" onClick={() => setVerPrevia(true)}>Ver cartilla</button>
+            <button type="button" className={`btn-ghost whitespace-nowrap ${codigoVivo ? "border-naranjo text-naranjo-oscuro" : ""}`} onClick={() => setVerProyectar(true)}>
+              {codigoVivo ? (<><span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${sync === "error" ? "bg-naranjo" : "animate-pulse bg-ok"}`} />{codigoVivo}</>) : "Proyectar"}
+            </button>
+            <button type="button" className="btn-ghost hidden whitespace-nowrap sm:inline-flex xl:hidden" onClick={() => setVerPrevia(true)}>Ver cartilla</button>
             <button type="button" className="btn-ghost hidden sm:inline-flex" onClick={() => { if (confirm("¿Borrar todo y comenzar una RIT nueva?")) { localStorage.removeItem(DRAFT_KEY); setRit(inicial()); } }}>
               Limpiar
             </button>
@@ -364,6 +403,54 @@ export default function RitForm() {
         </div>
         <CartillaPreview rit={rit} />
       </aside>
+
+      {/* Proyectar en pantalla grande */}
+      {verProyectar && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true" aria-label="Proyectar en pantalla" onClick={() => setVerProyectar(false)}>
+          <div className="w-full max-w-md space-y-4 rounded-t-2xl bg-white p-5 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="eyebrow">Pantalla de la sala</p>
+                <h2 className="text-lg font-bold">Proyectar la cartilla en vivo</h2>
+              </div>
+              <button type="button" className="text-sm font-semibold underline" onClick={() => setVerProyectar(false)}>Cerrar</button>
+            </div>
+            {codigoVivo ? (
+              <>
+                <p className="text-sm text-grafito-medio">En el computador del proyector o la TV, abra esta dirección. La cartilla se verá en grande y cambiará a medida que usted escribe.</p>
+                <div className="rounded-xl bg-grafito-claro p-4 text-center">
+                  <p className="break-all font-semibold text-grafito">{typeof window !== "undefined" ? window.location.host : ""}/vivo</p>
+                  <p className="mt-2 text-xs font-bold uppercase tracking-[0.16em] text-grafito-medio">Código</p>
+                  <p className="font-mono text-4xl font-bold tracking-[0.3em] text-naranjo">{codigoVivo}</p>
+                </div>
+                <p className="flex items-center gap-2 text-sm">
+                  <span className={`h-2.5 w-2.5 rounded-full ${sync === "error" ? "bg-naranjo" : "animate-pulse bg-ok"}`} />
+                  {sync === "error" ? "No se pudo enviar el último cambio; se reintentará con el próximo." : sync === "enviando" ? "Enviando cambios…" : "Proyectando: los cambios se ven en la pantalla."}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-dark"
+                    onClick={() => {
+                      const url = `${window.location.origin}/vivo/${codigoVivo}`;
+                      if (navigator.share) navigator.share({ title: "RIT en vivo", url }).catch(() => {});
+                      else navigator.clipboard?.writeText(url).catch(() => {});
+                    }}
+                  >
+                    Compartir enlace
+                  </button>
+                  <button type="button" className="btn-ghost" onClick={detenerProyeccion}>Detener proyección</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-grafito-medio">Muestre la cartilla en el proyector o la TV de la sala mientras la llena desde este celular, como una presentación en línea. Se generará un código para abrir en la pantalla.</p>
+                <button type="button" className="btn-primary w-full" onClick={iniciarProyeccion}>Comenzar a proyectar</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Vista previa en celular y tablet: pantalla completa con desplazamiento */}
       {verPrevia && (

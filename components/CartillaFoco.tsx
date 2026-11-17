@@ -6,13 +6,30 @@ import { Cartilla, CARTILLA_ANCHO_PX, type CartillaData } from "./Cartilla";
 /** Zona de la cartilla que se está editando: selector CSS de las celdas y un título corto. */
 export type Foco = { sel: string; titulo: string } | null;
 
-type Rect = { x: number; y: number; w: number; h: number };
+export type Rect = { x: number; y: number; w: number; h: number };
+
+/** Rectángulo que cubre todas las celdas del selector, en medidas de la hoja. */
+export function zonaDe(art: HTMLElement, sel: string): Rect | null {
+  let els: HTMLElement[] = [];
+  try {
+    els = Array.from(art.querySelectorAll<HTMLElement>(sel));
+  } catch {
+    return null;
+  }
+  if (!els.length) return null;
+  const rs = els.map((e) => posicion(e, art));
+  const x0 = Math.min(...rs.map((r) => r.x));
+  const y0 = Math.min(...rs.map((r) => r.y));
+  const x1 = Math.max(...rs.map((r) => r.x + r.w));
+  const y1 = Math.max(...rs.map((r) => r.y + r.h));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
 
 const MAX_ESCALA = 1.15;
 const MARGEN = 10; // px de la hoja alrededor de la zona
 
 /** Posición de un elemento dentro de la hoja, sin considerar escalas (medidas de diseño, no de pantalla). */
-function posicion(el: HTMLElement, raiz: HTMLElement): Rect {
+export function posicion(el: HTMLElement, raiz: HTMLElement): Rect {
   let x = 0;
   let y = 0;
   let n: HTMLElement | null = el;
@@ -40,16 +57,7 @@ export function CartillaFoco({ rit, foco, onAbrir, onOcultar }: { rit: CartillaD
       const art = h?.querySelector("article") as HTMLElement | null;
       if (!c || !h || !art) return;
       const ancho = c.clientWidth;
-      const els = foco ? Array.from(art.querySelectorAll<HTMLElement>(foco.sel)) : [];
-      let zona: Rect | null = null;
-      if (els.length) {
-        const rs = els.map((e) => posicion(e, art));
-        const x0 = Math.min(...rs.map((r) => r.x));
-        const y0 = Math.min(...rs.map((r) => r.y));
-        const x1 = Math.max(...rs.map((r) => r.x + r.w));
-        const y1 = Math.max(...rs.map((r) => r.y + r.h));
-        zona = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-      }
+      const zona = foco ? zonaDe(art, foco.sel) : null;
       const r = zona ?? { x: 0, y: 0, w: art.offsetWidth, h: art.offsetHeight };
       const rx = r.x - MARGEN;
       const ry = r.y - MARGEN;
