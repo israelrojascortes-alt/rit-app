@@ -37,10 +37,10 @@ const fechaLarga = (f: string) => (f ? new Date(f + "T12:00:00").toLocaleDateStr
 export function Cartilla({ rit, borrador = false }: { rit: CartillaData; borrador?: boolean }) {
   const td = "border border-[#BDBDBD] px-[1.2mm] align-middle";
   const th = "border border-[#BDBDBD] bg-grafito px-[1mm] py-[0.8mm] text-center font-bold text-white";
-  const turno = rit.turno || "–";
+  const turno = rit.turno || "";
 
   return (
-    <article className="w-[406mm] bg-white text-[2.75mm] leading-tight text-[#2B2B2B] print:w-full">
+    <article className="relative w-[406mm] bg-white text-[2.75mm] leading-tight text-[#2B2B2B] print:w-full">
       {/* Encabezado institucional */}
       <header className="flex items-center justify-between px-[7mm] pb-[2mm] pt-[3mm]">
         <div className="flex items-center gap-[3mm]">
@@ -60,7 +60,7 @@ export function Cartilla({ rit, borrador = false }: { rit: CartillaData; borrado
       </header>
       <div className="flex items-center justify-between bg-naranjo px-[7mm] py-[2mm] text-white">
         <h1 className="text-[5.6mm] font-bold">REUNIÓN DE INICIO DE TURNO (RIT)</h1>
-        <span className="text-[3.4mm] font-bold tracking-[0.2em]">{borrador ? "BORRADOR · " : ""}TURNO {turno}</span>
+        <span data-c="banda" className="px-[1mm] text-[3.4mm] font-bold tracking-[0.2em]">{borrador ? "BORRADOR · " : ""}TURNO {turno || "–"}</span>
       </div>
 
       <div className="space-y-[3mm] px-[7mm] py-[3mm]">
@@ -68,13 +68,13 @@ export function Cartilla({ rit, borrador = false }: { rit: CartillaData; borrado
         <table className="w-full table-fixed border-collapse">
           <tbody>
             {[
-              [["Centro de trabajo", rit.centroTrabajo], ["Gerencia", rit.gerencia], ["Superintendencia / Dirección", rit.superintendencia], ["Área / Frente de trabajo", rit.area]],
-              [["Fecha", fechaLarga(rit.fecha)], ["Turno", rit.turno], ["Supervisor a cargo", rit.supervisor], ["N.º de asistentes", rit.nAsistentes ? String(rit.nAsistentes) : ""]],
-              [["Nombre de EE.CC.", rit.eecc], ["N.º de contrato", rit.nContrato], ["Nombre del contrato", rit.nombreContrato], ["", ""]],
+              [["Centro de trabajo", rit.centroTrabajo, "centroTrabajo"], ["Gerencia", rit.gerencia, "gerencia"], ["Superintendencia / Dirección", rit.superintendencia, "superintendencia"], ["Área / Frente de trabajo", rit.area, "area"]],
+              [["Fecha", fechaLarga(rit.fecha), "fecha"], ["Turno", rit.turno, "turno"], ["Supervisor a cargo", rit.supervisor, "supervisor"], ["N.º de asistentes", rit.nAsistentes ? String(rit.nAsistentes) : "", "nAsistentes"]],
+              [["Nombre de EE.CC.", rit.eecc, "eecc"], ["N.º de contrato", rit.nContrato, "nContrato"], ["Nombre del contrato", rit.nombreContrato, "nombreContrato"], ["", "", ""]],
             ].map((row, i) => (
               <tr key={i}>
-                {row.map(([k, v], j) => (
-                  <td key={j} className={`${td} h-[6mm]`}>
+                {row.map(([k, v, key], j) => (
+                  <td key={j} data-k={key || undefined} className={`${td} h-[6mm]`}>
                     {k && (<><b className="text-grafito">{k}:</b> {v}</>)}
                   </td>
                 ))}
@@ -84,14 +84,14 @@ export function Cartilla({ rit, borrador = false }: { rit: CartillaData; borrado
         </table>
 
         {/* RF del turno */}
-        <div className="rounded-[1.5mm] bg-grafito-claro px-[3mm] py-[2mm]">
+        <div data-z="rf" className="rounded-[1.5mm] bg-grafito-claro px-[3mm] py-[2mm]">
           <p className="mb-[1.5mm] font-bold tracking-wide text-grafito">
             <span className="mr-[1.5mm] inline-block h-[2.4mm] w-[2.4mm] bg-naranjo" />
             RIESGOS DE FATALIDAD PRESENTES EN EL TURNO
           </p>
           <div className="grid grid-cols-7 gap-x-[3mm] gap-y-[1.4mm]">
             {RF.map((r) => (
-              <div key={r.code} className="flex items-center gap-[1.4mm]">
+              <div key={r.code} data-rf={r.code} className="flex items-center gap-[1.4mm]">
                 <Box on={rit.rfs.includes(r.code)} />
                 <b className="text-naranjo-oscuro">{r.code}</b>
                 <span className="truncate">{r.name}</span>
@@ -109,7 +109,7 @@ export function Cartilla({ rit, borrador = false }: { rit: CartillaData; borrado
           </colgroup>
           <thead>
             <tr>
-              <th rowSpan={2} className={th}>ACTIVIDAD · TURNO {turno}</th>
+              <th rowSpan={2} className={th}>ACTIVIDAD{turno ? ` · TURNO ${turno}` : ""}</th>
               <th colSpan={4} className={th}>¿ESTAMOS PREPARADOS PARA EJECUTARLA?</th>
               <th colSpan={4} className={`${th} bg-naranjo`}>ANÁLISIS DE RIESGO Y CONTROLES</th>
             </tr>
@@ -125,23 +125,23 @@ export function Cartilla({ rit, borrador = false }: { rit: CartillaData; borrado
               return Array.from({ length: rows }).map((__, m) => {
                 const x = a?.analisis[m];
                 return (
-                  <tr key={`${k}-${m}`} className={m === 0 ? "border-t-[0.4mm] border-t-grafito" : ""}>
+                  <tr key={`${k}-${m}`} data-act={k} data-an={m} className={m === 0 ? "border-t-[0.4mm] border-t-grafito" : ""}>
                     {m === 0 && (
-                      <td rowSpan={rows} className={`${td} align-top`}>
+                      <td rowSpan={rows} data-c="desc" className={`${td} align-top`}>
                         <b className="text-naranjo-oscuro">{turno}{k + 1}</b> {a?.descripcion}
                       </td>
                     )}
                     {m === 0 && ITEMS_PREPARACION.map((it) => (
-                      <td key={it.key} rowSpan={rows} className={`${td} text-center ${a?.[it.key] === false ? "bg-naranjo-claro" : ""}`}>
+                      <td key={it.key} rowSpan={rows} data-c={`prep ${it.key}`} className={`${td} text-center ${a?.[it.key] === false ? "bg-naranjo-claro" : ""}`}>
                         <span className="inline-flex items-center gap-[1mm] text-[2.3mm] font-bold text-grafito-medio">
                           SÍ <Box on={a?.[it.key] === true} /> NO <Box on={a?.[it.key] === false} />
                         </span>
                       </td>
                     ))}
-                    <td className={`${td} h-[5.6mm] font-bold text-naranjo-oscuro`}>{x?.rf}</td>
-                    <td className={td}>{x?.riesgo}</td>
-                    <td className={td}>{x?.consecuencia}</td>
-                    <td className={td}>{x?.controles.join(", ")}</td>
+                    <td data-c="an rf" className={`${td} h-[5.6mm] font-bold text-naranjo-oscuro`}>{x?.rf}</td>
+                    <td data-c="an riesgo" className={td}>{x?.riesgo}</td>
+                    <td data-c="an cons" className={td}>{x?.consecuencia}</td>
+                    <td data-c="an ctrl" className={td}>{x?.controles.join(", ")}</td>
                   </tr>
                 );
               });
@@ -152,10 +152,10 @@ export function Cartilla({ rit, borrador = false }: { rit: CartillaData; borrado
         {/* Aportes y reconocimientos */}
         <div className="grid grid-cols-[60%_1fr] gap-[5mm]">
           {[
-            { t: "APORTES A LA GESTIÓN DE RIESGOS (ÚLTIMO DÍA)", h: ["PROPUESTA", "RESPONSABLE", "FECHA"], rows: rit.aportes.map((a) => [a.propuesta, a.responsable, a.fecha ?? ""]) },
-            { t: "RECONOCIMIENTOS (ÚLTIMO DÍA)", h: ["QUIÉN", "MOTIVO"], rows: rit.reconocimientos.map((r) => [r.quien, r.motivo]) },
+            { z: "aportes", t: "APORTES A LA GESTIÓN DE RIESGOS (ÚLTIMO DÍA)", h: ["PROPUESTA", "RESPONSABLE", "FECHA"], rows: rit.aportes.map((a) => [a.propuesta, a.responsable, a.fecha ?? ""]) },
+            { z: "recon", t: "RECONOCIMIENTOS (ÚLTIMO DÍA)", h: ["QUIÉN", "MOTIVO"], rows: rit.reconocimientos.map((r) => [r.quien, r.motivo]) },
           ].map((b) => (
-            <div key={b.t}>
+            <div key={b.t} data-z={b.z}>
               <p className="mb-[1mm] font-bold tracking-wide text-grafito">
                 <span className="mr-[1.5mm] inline-block h-[2.2mm] w-[2.2mm] bg-naranjo" />
                 {b.t}
@@ -164,7 +164,7 @@ export function Cartilla({ rit, borrador = false }: { rit: CartillaData; borrado
                 <thead><tr>{b.h.map((h) => (<th key={h} className={th}>{h}</th>))}</tr></thead>
                 <tbody>
                   {Array.from({ length: Math.max(3, b.rows.length) }).map((_, i) => (
-                    <tr key={i}>{b.h.map((h, j) => (<td key={h} className={`${td} h-[5mm]`}>{b.rows[i]?.[j]}</td>))}</tr>
+                    <tr key={i} data-i={i}>{b.h.map((h, j) => (<td key={h} className={`${td} h-[5mm]`}>{b.rows[i]?.[j]}</td>))}</tr>
                   ))}
                 </tbody>
               </table>

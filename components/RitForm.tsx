@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RF, RF_BY_CODE } from "@/lib/rf";
 import { CartillaPreview } from "./CartillaPreview";
+import { CartillaFoco, type Foco } from "./CartillaFoco";
 import {
   ITEMS_PREPARACION,
   MAX_ACTIVIDADES_POR_TURNO,
@@ -18,6 +19,11 @@ import {
 
 type FormRit = Omit<RitInput, "turno"> & { turno: Turno | "" };
 const DRAFT_KEY = "rit-borrador-v2";
+/** Marca un control del formulario con la zona de la cartilla que modifica (para la vista en vivo enfocada). */
+const f = (sel: string, titulo: string) => ({ "data-foco": sel, "data-foco-titulo": titulo });
+const enAct = (i: number, c: string) => c.split(",").map((x) => `tr[data-act="${i}"] [data-c~="${x.trim()}"]`).join(", ");
+const enAn = (i: number, j: number, c: string) => c.split(",").map((x) => `tr[data-act="${i}"][data-an="${j}"] [data-c~="${x.trim()}"]`).join(", ");
+
 const hoy = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 const nuevaActividad = (): ActividadInput => ({
@@ -54,6 +60,21 @@ export default function RitForm() {
   const [errores, setErrores] = useState<string[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [cargado, setCargado] = useState(false);
+  const [foco, setFoco] = useState<Foco>(null);
+  const [enVivo, setEnVivo] = useState(true);
+
+  useEffect(() => {
+    try { if (localStorage.getItem("rit-en-vivo") === "0") setEnVivo(false); } catch {}
+  }, []);
+  const cambiarEnVivo = (v: boolean) => {
+    setEnVivo(v);
+    try { localStorage.setItem("rit-en-vivo", v ? "1" : "0"); } catch {}
+  };
+  // El control tocado (o su contenedor más cercano) dice qué parte de la cartilla enfocar.
+  const alTocar = (e: React.SyntheticEvent) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>("[data-foco]");
+    if (el?.dataset.foco) setFoco({ sel: el.dataset.foco, titulo: el.dataset.focoTitulo ?? "" });
+  };
 
   // Borrador local: si se corta la señal en terreno, no se pierde lo escrito.
   useEffect(() => {
@@ -71,7 +92,7 @@ export default function RitForm() {
   }, [rit, cargado]);
 
   const set = <K extends keyof FormRit>(k: K, v: FormRit[K]) => setRit((r) => ({ ...r, [k]: v }));
-  const turno = rit.turno || "–";
+  const turno = rit.turno || "";
 
   const updAct = (i: number, patch: Partial<ActividadInput>) =>
     setRit((r) => ({ ...r, actividades: r.actividades.map((a, k) => (k === i ? { ...a, ...patch } : a)) }));
@@ -111,7 +132,14 @@ export default function RitForm() {
 
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start xl:gap-6">
-    <div className="space-y-5 pb-24">
+    <div className="space-y-5 pb-24 max-xl:[&_input]:scroll-mt-[36vh] max-xl:[&_textarea]:scroll-mt-[36vh] max-xl:[&_select]:scroll-mt-[36vh]" onFocusCapture={alTocar} onPointerDownCapture={alTocar}>
+      {enVivo ? (
+        <CartillaFoco rit={rit} foco={foco} onAbrir={() => setVerPrevia(true)} onOcultar={() => cambiarEnVivo(false)} />
+      ) : (
+        <button type="button" className="sticky top-0 z-20 w-full rounded-b-xl bg-grafito-claro/95 py-2 text-xs font-bold text-naranjo-oscuro backdrop-blur xl:hidden" onClick={() => cambiarEnVivo(true)}>
+          Mostrar cartilla en vivo
+        </button>
+      )}
       {errores.length > 0 && (
         <div className="rounded-xl border border-naranjo bg-naranjo-claro p-4 text-sm text-naranjo-oscuro" role="alert">
           <p className="mb-1 font-bold">Revise lo siguiente antes de enviar:</p>
@@ -120,11 +148,11 @@ export default function RitForm() {
       )}
 
       {/* 1 · Identificación */}
-      <section className="card space-y-4">
+      <section className="card space-y-4" {...f('[data-k="centroTrabajo"], [data-k="nombreContrato"]', "Identificación")}>
         <h2 className="section-title">1 · Identificación</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Campo label="Fecha"><input type="date" className="input" value={rit.fecha} onChange={(e) => set("fecha", e.target.value)} /></Campo>
-          <div>
+          <Campo label="Fecha" foco={f('[data-k="fecha"]', "Fecha")}><input type="date" className="input" value={rit.fecha} onChange={(e) => set("fecha", e.target.value)} /></Campo>
+          <div {...f('[data-c="banda"]', "Turno")}>
             <span className="label">Turno *</span>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Turno">
               {(["A", "B"] as Turno[]).map((t) => (
@@ -141,22 +169,22 @@ export default function RitForm() {
               ))}
             </div>
           </div>
-          <Campo label="Centro de trabajo"><input className="input" value={rit.centroTrabajo} onChange={(e) => set("centroTrabajo", e.target.value)} /></Campo>
-          <Campo label="Gerencia *"><input className="input" value={rit.gerencia} onChange={(e) => set("gerencia", e.target.value)} placeholder="Ej.: GMM" /></Campo>
-          <Campo label="Superintendencia / Dirección"><input className="input" value={rit.superintendencia} onChange={(e) => set("superintendencia", e.target.value)} /></Campo>
-          <Campo label="Área / Frente de trabajo *" className="sm:col-span-2"><input className="input" value={rit.area} onChange={(e) => set("area", e.target.value)} /></Campo>
-          <Campo label="Supervisor a cargo *"><input className="input" value={rit.supervisor} onChange={(e) => set("supervisor", e.target.value)} autoComplete="name" /></Campo>
-          <Campo label="N.º de asistentes *">
+          <Campo label="Centro de trabajo" foco={f('[data-k="centroTrabajo"]', "Centro de trabajo")}><input className="input" value={rit.centroTrabajo} onChange={(e) => set("centroTrabajo", e.target.value)} /></Campo>
+          <Campo label="Gerencia *" foco={f('[data-k="gerencia"]', "Gerencia")}><input className="input" value={rit.gerencia} onChange={(e) => set("gerencia", e.target.value)} placeholder="Ej.: GMM" /></Campo>
+          <Campo label="Superintendencia / Dirección" foco={f('[data-k="superintendencia"]', "Superintendencia / Dirección")}><input className="input" value={rit.superintendencia} onChange={(e) => set("superintendencia", e.target.value)} /></Campo>
+          <Campo label="Área / Frente de trabajo *" className="sm:col-span-2" foco={f('[data-k="area"]', "Área / Frente de trabajo")}><input className="input" value={rit.area} onChange={(e) => set("area", e.target.value)} /></Campo>
+          <Campo label="Supervisor a cargo *" foco={f('[data-k="supervisor"]', "Supervisor a cargo")}><input className="input" value={rit.supervisor} onChange={(e) => set("supervisor", e.target.value)} autoComplete="name" /></Campo>
+          <Campo label="N.º de asistentes *" foco={f('[data-k="nAsistentes"]', "N.º de asistentes")}>
             <input type="number" inputMode="numeric" min={1} className="input" value={rit.nAsistentes || ""} onChange={(e) => set("nAsistentes", Number(e.target.value))} />
           </Campo>
-          <Campo label="Empresa contratista (EE.CC.)"><input className="input" value={rit.eecc} onChange={(e) => set("eecc", e.target.value)} /></Campo>
-          <Campo label="N.º de contrato"><input className="input" inputMode="numeric" value={rit.nContrato} onChange={(e) => set("nContrato", e.target.value)} /></Campo>
-          <Campo label="Nombre del contrato" className="sm:col-span-2"><input className="input" value={rit.nombreContrato} onChange={(e) => set("nombreContrato", e.target.value)} /></Campo>
+          <Campo label="Empresa contratista (EE.CC.)" foco={f('[data-k="eecc"]', "Empresa contratista")}><input className="input" value={rit.eecc} onChange={(e) => set("eecc", e.target.value)} /></Campo>
+          <Campo label="N.º de contrato" foco={f('[data-k="nContrato"]', "N.º de contrato")}><input className="input" inputMode="numeric" value={rit.nContrato} onChange={(e) => set("nContrato", e.target.value)} /></Campo>
+          <Campo label="Nombre del contrato" className="sm:col-span-2" foco={f('[data-k="nombreContrato"]', "Nombre del contrato")}><input className="input" value={rit.nombreContrato} onChange={(e) => set("nombreContrato", e.target.value)} /></Campo>
         </div>
       </section>
 
       {/* 2 · RF del turno */}
-      <section className="card space-y-3">
+      <section className="card space-y-3" {...f('[data-z="rf"]', "Riesgos de fatalidad del turno")}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="section-title">2 · Riesgos de fatalidad presentes en el turno</h2>
           <span className="text-xs text-grafito-medio">{rit.rfs.length} marcados</span>
@@ -168,6 +196,7 @@ export default function RitForm() {
               <button
                 key={r.code}
                 type="button"
+                {...f(`[data-rf="${r.code}"]`, `${r.code} · ${r.name}`)}
                 onClick={() => toggleRf(r.code)}
                 aria-pressed={on}
                 className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition ${on ? "border-naranjo bg-naranjo-claro" : "border-grafito-linea bg-white hover:bg-grafito-claro"}`}
@@ -191,14 +220,14 @@ export default function RitForm() {
         {rit.actividades.length === 0 && <p className="text-sm text-grafito-medio">Sin actividades registradas.</p>}
 
         {rit.actividades.map((a, i) => (
-          <div key={i} className="space-y-3 rounded-xl border border-grafito-linea p-3 sm:p-4">
+          <div key={i} className="space-y-3 rounded-xl border border-grafito-linea p-3 sm:p-4" {...f(enAct(i, "desc, prep"), `Actividad ${turno}${i + 1}`)}>
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-naranjo-oscuro">Actividad {turno}{i + 1}</span>
               <button type="button" className="text-xs font-semibold text-grafito-medio underline" onClick={() => set("actividades", rit.actividades.filter((_, k) => k !== i))}>
                 Quitar
               </button>
             </div>
-            <textarea className="input min-h-[64px]" placeholder="Describa la actividad (igual que en la ART)" value={a.descripcion} onChange={(e) => updAct(i, { descripcion: e.target.value })} />
+            <textarea {...f(enAct(i, "desc"), `Actividad ${turno}${i + 1} · descripción`)} className="input min-h-[64px]" placeholder="Describa la actividad (igual que en la ART)" value={a.descripcion} onChange={(e) => updAct(i, { descripcion: e.target.value })} />
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {ITEMS_PREPARACION.map((it) => (
@@ -216,7 +245,7 @@ export default function RitForm() {
               {a.analisis.map((an, j) => {
                 const rf = RF_BY_CODE[an.rf];
                 return (
-                  <div key={j} className="space-y-2 rounded-lg bg-grafito-claro p-3">
+                  <div key={j} className="space-y-2 rounded-lg bg-grafito-claro p-3" {...f(enAn(i, j, "rf, riesgo"), `Actividad ${turno}${i + 1} · riesgo ${j + 1}`)}>
                     <div className="grid gap-2 sm:grid-cols-[160px_1fr]">
                       <select
                         className="input"
@@ -234,9 +263,9 @@ export default function RitForm() {
                       </select>
                       <input className="input" placeholder="Riesgo / evento top" value={an.riesgo} onChange={(e) => updAn(i, j, { riesgo: e.target.value })} />
                     </div>
-                    <input className="input" placeholder="Consecuencia" value={an.consecuencia} onChange={(e) => updAn(i, j, { consecuencia: e.target.value })} />
+                    <input {...f(enAn(i, j, "cons"), `Actividad ${turno}${i + 1} · consecuencia ${j + 1}`)} className="input" placeholder="Consecuencia" value={an.consecuencia} onChange={(e) => updAn(i, j, { consecuencia: e.target.value })} />
                     {rf && (
-                      <fieldset>
+                      <fieldset {...f(enAn(i, j, "ctrl"), `Actividad ${turno}${i + 1} · controles críticos ${j + 1}`)}>
                         <legend className="label">Controles críticos verificados</legend>
                         <div className="grid gap-1.5">
                           {rf.controles.map((c) => {
@@ -277,18 +306,18 @@ export default function RitForm() {
         ))}
 
         {rit.actividades.length < MAX_ACTIVIDADES_POR_TURNO && (
-          <button type="button" className="btn-dark w-full" onClick={() => set("actividades", [...rit.actividades, nuevaActividad()])}>
+          <button type="button" className="btn-dark w-full" {...f(enAct(rit.actividades.length, "desc, prep"), `Actividad ${turno}${rit.actividades.length + 1}`)} onClick={() => set("actividades", [...rit.actividades, nuevaActividad()])}>
             + Agregar actividad{rit.turno ? ` al turno ${rit.turno}` : ""}
           </button>
         )}
       </section>
 
       {/* 4 · Aportes y reconocimientos */}
-      <section className="card space-y-4">
+      <section className="card space-y-4" {...f('[data-z="aportes"], [data-z="recon"]', "Aportes y reconocimientos")}>
         <h2 className="section-title">4 · Aportes a la gestión de riesgos <span className="text-sm font-normal italic text-grafito-medio">(último día)</span></h2>
         <p className="text-xs text-grafito-medio">El responsable del aporte es el supervisor. Los reconocimientos se registran al término del turno.</p>
         {rit.aportes.map((ap, k) => (
-          <div key={k} className="grid gap-2 rounded-lg bg-grafito-claro p-3 sm:grid-cols-[1fr_200px_160px_auto]">
+          <div key={k} className="grid gap-2 rounded-lg bg-grafito-claro p-3 sm:grid-cols-[1fr_200px_160px_auto]" {...f(`[data-z="aportes"] tr[data-i="${k}"]`, `Aporte ${k + 1}`)}>
             <input className="input" placeholder="Propuesta" value={ap.propuesta} onChange={(e) => set("aportes", rit.aportes.map((x, m) => (m === k ? { ...x, propuesta: e.target.value } : x)))} />
             <input className="input" placeholder="Responsable" value={ap.responsable} onChange={(e) => set("aportes", rit.aportes.map((x, m) => (m === k ? { ...x, responsable: e.target.value } : x)))} />
             <input type="date" className="input" value={ap.fecha} onChange={(e) => set("aportes", rit.aportes.map((x, m) => (m === k ? { ...x, fecha: e.target.value } : x)))} />
@@ -299,13 +328,13 @@ export default function RitForm() {
 
         <h2 className="section-title pt-2">5 · Reconocimientos <span className="text-sm font-normal italic text-grafito-medio">(último día)</span></h2>
         {rit.reconocimientos.map((rc, k) => (
-          <div key={k} className="grid gap-2 rounded-lg bg-grafito-claro p-3 sm:grid-cols-[220px_1fr_auto]">
+          <div key={k} className="grid gap-2 rounded-lg bg-grafito-claro p-3 sm:grid-cols-[220px_1fr_auto]" {...f(`[data-z="recon"] tr[data-i="${k}"]`, `Reconocimiento ${k + 1}`)}>
             <input className="input" placeholder="Quién" value={rc.quien} onChange={(e) => set("reconocimientos", rit.reconocimientos.map((x, m) => (m === k ? { ...x, quien: e.target.value } : x)))} />
             <input className="input" placeholder="Motivo" value={rc.motivo} onChange={(e) => set("reconocimientos", rit.reconocimientos.map((x, m) => (m === k ? { ...x, motivo: e.target.value } : x)))} />
             <button type="button" className="text-xs font-semibold text-grafito-medio underline" onClick={() => set("reconocimientos", rit.reconocimientos.filter((_, m) => m !== k))}>Quitar</button>
           </div>
         ))}
-        <button type="button" className="btn-ghost" onClick={() => set("reconocimientos", [...rit.reconocimientos, { quien: "", motivo: "" }])}>+ Agregar reconocimiento</button>
+        <button type="button" className="btn-ghost" {...f('[data-z="recon"]', "Reconocimientos")} onClick={() => set("reconocimientos", [...rit.reconocimientos, { quien: "", motivo: "" }])}>+ Agregar reconocimiento</button>
       </section>
 
       {/* Barra de envío */}
@@ -355,9 +384,9 @@ export default function RitForm() {
   );
 }
 
-function Campo({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
+function Campo({ label, className = "", foco, children }: { label: string; className?: string; foco?: Record<string, string>; children: React.ReactNode }) {
   return (
-    <label className={`block ${className}`}>
+    <label className={`block ${className}`} {...foco}>
       <span className="label">{label}</span>
       {children}
     </label>
