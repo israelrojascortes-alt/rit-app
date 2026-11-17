@@ -57,3 +57,12 @@ CREATE TABLE IF NOT EXISTS reconocimiento (
   quien   TEXT NOT NULL,
   motivo  TEXT NOT NULL DEFAULT ''
 );
+
+-- Proyección en vivo: borrador que se está llenando desde un celular y se muestra en una pantalla grande.
+CREATE TABLE IF NOT EXISTS rit_vivo (
+  codigo       TEXT        PRIMARY KEY,
+  datos        JSONB       NOT NULL,
+  foco         TEXT        NOT NULL DEFAULT '',
+  version      INTEGER     NOT NULL DEFAULT 1,
+  actualizado  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
